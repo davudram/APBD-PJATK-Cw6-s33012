@@ -8,7 +8,7 @@ namespace ClinicApplication.Services
 {
     public class AppointmentService(IConfiguration configuration) : IAppointmentService
     {
-        public async Task<CreateAppointmentRequestDto> CreateAppointmentRequestDto(CreateAppointmentRequestDto dto)
+        public async Task<CreateAppointmentRequestDto> CreateAppointment(CreateAppointmentRequestDto dto)
         {
             await using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
 
@@ -82,7 +82,7 @@ namespace ClinicApplication.Services
             return dto;
         }
 
-        public async Task<UpdateAppointmentRequestDto> UpdateAppointmentRequestDto(int id, UpdateAppointmentRequestDto dto)
+        public async Task<UpdateAppointmentRequestDto> UpdateAppointment(int id, UpdateAppointmentRequestDto dto)
         {
             await using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
 
@@ -176,7 +176,7 @@ namespace ClinicApplication.Services
             return dto;
         }
 
-        public async Task<bool> DeleteAppointmentRequestDto(int id)
+        public async Task<bool> DeleteAppointment(int id)
         {
             await using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
 
@@ -209,28 +209,39 @@ namespace ClinicApplication.Services
             return await command.ExecuteNonQueryAsync() > 0;
         }
 
-        public async Task<AppointmentDetailsDto> GetAppointmentDetailsDto(int id)
+        public async Task<AppointmentDetailsDto> GetAppointmentDetails(int id)
         {
             var appointment = new AppointmentDetailsDto();
 
             await using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+
+            await connection.OpenAsync();
+
+            await using (var checkCommand = new SqlCommand(
+               @"SELECT COUNT(1)
+                  FROM Appointments
+                  WHERE IdAppointment = @IdAppointment", connection))
+            {
+                checkCommand.Parameters.AddWithValue("@IdAppointment", id);
+
+                var count = (int)await checkCommand.ExecuteScalarAsync();
+
+                if (count == 0)
+                    throw new NotFoundException("Error! Not found");
+            }
+
             await using var command = new SqlCommand();
             command.Connection = connection;
             command.CommandText = 
                 @"SELECT p.Email, p.PhoneNumber, a.InternalNotes, d.LicenseNumber, a.CreatedAt
                   FROM Appointments a
-                  INNER JOIN Patients p ON a.IdPatient = p.IdPatient
-                  INNER JOIN Doctors d ON a.IdDoctor = d.IdDoctor
+                  LEFT JOIN Patients p ON a.IdPatient = p.IdPatient
+                  LEFT JOIN Doctors d ON a.IdDoctor = d.IdDoctor
                   WHERE a.IdAppointment = @IdAppointment;";
 
             command.Parameters.AddWithValue("@IdAppointment", id);
 
-            await connection.OpenAsync();
-
-            var reader = await command.ExecuteReaderAsync();
-
-            if (reader == null)
-                throw new NotFoundException("Error! Not found.");
+            await using var reader = await command.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
@@ -247,29 +258,27 @@ namespace ClinicApplication.Services
             return appointment;
         }
 
-        public async Task<List<AppointmentListDto>> GetAppointmentListDto(StatusPatientDbo dbo)
+        public async Task<List<AppointmentListDto>> GetAppointmentList(StatusPatientDbo dbo)
         {
             var appointments = new List<AppointmentListDto>();
 
             await using var connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+
+            await connection.OpenAsync();
+
             await using var command = new SqlCommand();
             command.Connection = connection;
             command.CommandText = 
                 @"SELECT   a.IdAppointment,    a.AppointmentDate,    a.Status,    a.Reason,    p.FirstName + N' ' + p.LastName AS PatientFullName,    p.Email AS PatientEmail
                 FROM dbo.Appointments a
-                JOIN dbo.Patients p ON p.IdPatient = a.IdPatient
+                LEFT JOIN dbo.Patients p ON p.IdPatient = a.IdPatient
                 WHERE (@Status IS NULL OR a.Status = @Status) AND (@PatientLastName IS NULL OR p.LastName = @PatientLastName)
                 ORDER BY a.AppointmentDate;";
 
             command.Parameters.AddWithValue("@Status", (object?)dbo.Status ?? DBNull.Value);
             command.Parameters.AddWithValue("@PatientLastName", (object?)dbo.PatientLastName ?? DBNull.Value);
-
-            await connection.OpenAsync();
-
-            var reader = await command.ExecuteReaderAsync();
-
-            if (reader == null)
-                throw new NotFoundException("Error! Not found.");
+                        
+            await using var reader = await command.ExecuteReaderAsync();
 
             while (await reader.ReadAsync())
             {
@@ -283,6 +292,9 @@ namespace ClinicApplication.Services
                     PatientEmail = reader.GetString(5)
                 });
             }
+
+            if (appointments.Count == 0)
+                throw new NotFoundException("Error! Not found.");
 
             return appointments;
         }

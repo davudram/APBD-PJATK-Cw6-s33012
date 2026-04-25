@@ -19,36 +19,36 @@ namespace ClinicApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllAppointments([FromQuery] StatusPatientDbo dbo)
         {
-            return Ok(await _appointmentService.GetAppointmentListDto(dbo));
+            return Ok(await _appointmentService.GetAppointmentList(dbo));
         }
 
         [HttpGet]
         [Route("{idAppointment:int}")]
-        public async Task<IActionResult> GetByIdAppointment(int idAppointment)
+        public async Task<IActionResult> GetByIdAppointment([FromRoute] int idAppointment)
         {
-            return Ok(await _appointmentService.GetAppointmentDetailsDto(idAppointment));
+            return Ok(await _appointmentService.GetAppointmentDetails(idAppointment));
         }
 
         [HttpPost]
         public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentRequestDto dto)
         {
-            var newAppointment = await _appointmentService.CreateAppointmentRequestDto(dto);
+            var newAppointment = await _appointmentService.CreateAppointment(dto);
 
             return Created($"/api/appointments/{newAppointment}", new {Appointment = newAppointment});
         }
 
         [HttpPut]
         [Route("{idAppointment:int}")]
-        public async Task<IActionResult> UpdateAppointment(int idAppointment, [FromBody] UpdateAppointmentRequestDto dto)
+        public async Task<IActionResult> UpdateAppointment([FromRoute] int idAppointment, [FromBody] UpdateAppointmentRequestDto dto)
         {
-            return Ok(await _appointmentService.UpdateAppointmentRequestDto(idAppointment, dto));
+            return Ok(await _appointmentService.UpdateAppointment(idAppointment, dto));
         }
 
         [HttpDelete]
         [Route("{idAppointment:int}")]
-        public async Task<IActionResult> DeleteAppointment(int idAppointment)
+        public async Task<IActionResult> DeleteAppointment([FromRoute] int idAppointment)
         {
-            await _appointmentService.DeleteAppointmentRequestDto(idAppointment);
+            await _appointmentService.DeleteAppointment(idAppointment);
 
             return NoContent();
         }
